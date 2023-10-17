@@ -1,0 +1,250 @@
+<document start>
+---
+  title: "Diabetic foot ulcers project"
+output: html_notebook
+---
+  
+#Introduction
+  
+## Project Overview
+  
+This project is on the patterns garnerd from hospital data from the NHS labelled the National Diabetes Footcare Audit (NDFA),  which focuses on patients diagnosed with Diabetic foot ulcers. Diabetes is becoming an increasingly prominant within the United Kingdom (UK) and with the aid of data gathered by the NHS, we will be able to determine patterns within patients records providing possible pathways to postive outcomes of patient health. My motivation stems from a Biomedical background and the idea to contribute to the health of each individual with fact based knowledge. The problem is to optimize patient care and provide factual evidence on possible measure for resource allocation.
+
+
+## Objectives
+
+a) Improve patient care and outcomes: By analyzing historical patient data, the hospital aims to identify factors that influence patient outcomes, such as patterns through age and SINBAD (Site, Ischaemia, Neuropathy, Bacterial Infection, Area and Depth) surrounding Diabetic foor ulcers.
+b) Optimize resource allocation: By analyzing resource utilization data, the hospital aims to identify inefficiencies, bottlenecks, and areas where resources can be allocated more effectively to enhance operational efficiency.
+
+The data will be cleaned and alaysed through various plotting methods such as in R and other plotting software such as Tableau to determine outcomes.
+
+## Data Description
+
+The data that is used within this analysis was obtained form the UK government website listed under NFDA. This data set is countyed as open source making it available for analysis. The NFDA dataset contains 3 years of data (2015-2018) with a variety of cloumns such as SINBAD score, a coloumn for records of patients pertaining to each SINBAD value, Each hospital names, case ascertainment and severe cases. All data within the NFDA dataset contains anonoumsity of the patients information.
+
+
+The data had to be pre-processed beforehand by selecting and filtering the relevant columns seen through the preview menu of bigquery seen by the columns determined are as seen below. 
+
+```SQL code
+SELECT
+NDFA_patients__n_,
+NDFA_patients__Age_at_assessment__years_,
+NDFA_patients_linked_to_NDA__Duration_of_diabetes__years_,
+Cases_with_SINBAD_Depth_recorded__n_,
+Cases_with_SINBAD_Neuropathy_recorded__n_,
+Cases_with_SINBAD_Ischaemia_recorded__n_,
+Cases_with_SINBAD_Bacterial_Infection_recorded__n_,
+Cases_with_SINBAD_Site_recorded__n_,
+Cases_with_SINBAD_Area_recorded__n_,
+Case_ascertainment__2015_16_____,
+Case_ascertainment__2016_17_____,
+Case_ascertainment__2017_18_____,
+Cases_seen_within_14_days___2_months__n_,
+Cases_seen_within___2_months__n_
+FROM
+`portfolio-projects-392310.diabetes_foot_2014_to_2018.diabetesfoot2014-18`
+
+```
+
+
+After the filtering the process, the data had to be cleaned before analysis due to  inconsistances in the data such as several columns featuring '*' as records aswell as removing null values.
+
+```SQL code
+WHERE
+CONCAT(NDFA_cases_2015_16__n_, NDFA_cases_2016_17__n_, NDFA_cases_2017_18__n_, NDFA_patients__Age_at_assessment__years_, Case_ascertainment__2015_16_____, Case_ascertainment__2016_17_____, Case_ascertainment__2017_18_____) IS NOT NULL
+AND NOT NDFA_patients__Age_at_assessment__years_ = "*"
+```
+
+
+Interestingly the column 'NDFA_patients__Age_at_assessment__years_' was labelled as a string and so to correct this as well as to ensure that the filtering of '*' has been achieved, this column will have to be converted into FLOAT64. The result of this query was then exported into a .csv file to be utilised in R.
+
+```SQL code
+AND CAST(NDFA_patients__Age_at_assessment__years_ AS FLOAT64) < 100
+```
+
+All these steps mentioned was acheieved through SQL.
+
+## Methodology
+
+Now in R, the steps taken was to first install tidyverse and load this package in order to perform all following code.
+
+```{r}
+install.packages("tidyverse")
+
+library(tidyverse)
+```
+
+After installing the package, I then loaded in the .csv file obtained from the SQL code and listed the data frame under a new variable to simplyfing the process of calling the dataframe. The isssues arised when the imported .csv file did not seem to be recognised and understood by the R software, after learning on this and through the help of the R community, I was able to set the encoding to 'latin1' which provided the .csv file to be read and correctly imported.
+
+```{r}
+# Read the CSV file
+Diabetes_foot_2014_to_2018 <- read.csv(file = "updated_filtered_diabetesfoot2014-18.csv", encoding = "latin1")
+```
+
+
+Due to inaccurate pre porccessing, The omision of missing values was not achieved and so this code perfomes this task in R.
+```{r}
+filtered_Diabetes_foot_2014_to_2018 <- na.omit(filtered_Diabetes_foot_2014_to_2018)
+```
+
+
+To verify if the import awas a success, I utilised the below code to determine if the column that was intended where present.
+
+```{r}
+# Check column names
+colnames(filtered_Diabetes_foot_2014_to_2018)
+
+```
+
+### Plotting the Ages of patients assessed at diagnosis
+
+After verifying the presence of the columns, The next step is formatting a bar graph to display the data, but to do this, a new column was inserted into the 'filtered_Diabetes_foot_2014_to_2018' dataset named 'Age_group' which provided a location of the newly manipulated NDFA_patients__Age_at_assessment__years_ values (values that was rounded to the nearest integer).
+
+```{r}
+# Convert NDFA_patients__Age_at_assessment__years_ to discrete data and generates a new column named Age_group with values rounded to nearest integer by 'floor'
+filtered_Diabetes_foot_2014_to_2018$Age_Group <- floor(filtered_Diabetes_foot_2014_to_2018$NDFA_patients__Age_at_assessment__years_)
+```
+
+
+After forming the new column, a new dataset will be formed named average_ndfa. The reason for this is to house the grouped age_group, enabling for the calling of the column and to house the mean/average number of NFDA patients, prcoessed by the summarise and mean commands seen below.
+
+```{r}
+# Calculate the average NDFA patients for each age group
+average_ndfa <- filtered_Diabetes_foot_2014_to_2018 %>%
+  group_by(Age_Group) %>%
+  summarise(average_ndfa = mean(NDFA_patients__n_))
+```
+
+Next after configuring the dataset, the plotting of the data is seen below by utilising the 'average_ndfa' dataset.  as seen, the X-axis countains the Age_group and the Y-axis contains the Average NDFA patients which has been labelled accordingly. The title has been given in order to provide an overview the plots content.
+
+
+```{r}
+# Bar chart of Ages of patients assessed at diagnosis with average NDFA patients
+ggplot(data = average_ndfa) +
+  geom_bar(mapping = aes(x = Age_Group, y = average_ndfa), stat = "identity", fill = "blue") +
+  labs(x = "Age Group", y = "Average NDFA Patients", title = "Ages of patients assessed at diagnosis") +
+  theme_minimal()
+
+```
+
+
+### Plotting a line graph on the Duration of Diabetes for NFDA patients vs Cases seen within 14 days to 2 months and greater than 2 months
+
+Repeated steps as 'Plotting the Ages of patients assessed at diagnosis', a new column was inserted into the 'filtered_Diabetes_foot_2014_to_2018' dataset named 'Duration_Group' which provided a location of the new NDFA_patients_linked_to_NDA__Duration_of_diabetes__years_ values (values that was rounded to the nearest integer).
+
+```{r}
+# Convert NDFA_patients_linked_to_NDA__Duration_of_diabetes__years_ to discrete data and generate a new column named Duration_Group with values rounded to nearest integer using 'floor'
+filtered_Diabetes_foot_2014_to_2018$Duration_Group <- floor(filtered_Diabetes_foot_2014_to_2018$NDFA_patients_linked_to_NDA__Duration_of_diabetes__years_)
+```
+
+
+After creating the new column 'average_Diabetes_duration', the columns values where grouped to be able to me called together, The summarise function allows for the data to be returned as a value from the distinct calculation. The distinct calculation is to return the values that is unique to remove any duplicates and to docus on the unique patients.
+
+```{r}
+# Calculate the average duration of Diabetes for each age group
+average_Diabetes_duration <- filtered_Diabetes_foot_2014_to_2018 %>%
+  group_by(Duration_Group) %>%
+  summarise(average_Diabetes_duration_in_2months = n_distinct(Cases_seen_within___2_months__n_),
+            average_Diabetes_duration_in_14_2months = n_distinct(Cases_seen_within_14_days___2_months__n_))
+```
+
+
+Seen below is the code to generate a line graph with 2x Y-axis points. The reason for placing the 2 axis points 'average_Diabetes_duration_in_14_2months' and 'average_Diabetes_duration_in_2months' is to enable a comparison aginst the patients that has been seen on a 14day to 2month period or a casses seen within a 2 month basis. 
+
+The geom_line defines the plot that we want, a Line plot. for each difference in Y-axis, there is a colout assigned to it as seen by the key on the right of this plot. The difference between the 2nd Y-axis that the *10 is to enesure that both y-axis is of the same scale. The labs function is to define the various axis with their corresponding heading, a Title which defines the grpah and to code a legend on the right hand side which defines which data the colour represents.
+
+```{r}
+# Create a line plot with two y-axes - Duration of Diabetes for NFDA patients vs Cases seen within 14 days to 2 months and greater than 2 months.
+ggplot(data = average_Diabetes_duration) +
+  geom_line(aes(x = Duration_Group, y = average_Diabetes_duration_in_2months, color = "Cases seen within 2 months")) +
+  geom_line(aes(x = Duration_Group, y = average_Diabetes_duration_in_14_2months * 10, color = "Cases seen within 14 days to 2 months")) +
+  scale_y_continuous(
+    name = "Cases seen within 2 months",
+    sec.axis = sec_axis(trans = ~ ., name = "Cases seen within 14 days to 2 months")
+  ) +
+  labs(x = "Diabetes Duration (Years)", color = "Legend", title = "Duration of Diabetes vs Cases seen within 14 days to 2 months and > 2 months") +
+  theme_minimal()
+```
+
+
+### Plotting a graph with 6x Y-axis relating to the individual SINBAD recordings vs the Patients age
+
+Next is plotting a graph with 6x Y-axis that relate to number of cases recorded for; Area, Bacterial infection, Depth, Ischaemia, Neuropathy, Site in relation to foot ulcers. The purpose of this graph is to correlate which of the SINBAD recordings are most prominent at each age group.
+
+The basis of this graph is similar to other plotted graph listed above but with the addition of 6x Y-axis that relates to each value of SINBAD, with INBAD containing a *10 to match the scale set by 'Cases_with_SINBAD_Site_recorded__n_'. The name for the Y-axis is not separated but aggregated with each other to produce a less clustered graph. A legend is preswent on the right to correlate the colours to their respective SINBAD variable .
+
+```{r}
+ggplot(filtered_Diabetes_foot_2014_to_2018, aes(NDFA_patients__Age_at_assessment__years_)) +
+  geom_line(aes(y = Cases_with_SINBAD_Site_recorded__n_, color = "number of Cases with SINBAD Site_recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Ischaemia_recorded__n_ * 10, color = "number of Cases with SINBAD Ischaemia recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Neuropathy_recorded__n_ * 10, color = "number of Cases with SINBAD Neuropathy recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Bacterial_Infection_recorded__n_ * 10, color = "number of Cases with SINBAD Bacterial Infection recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Area_recorded__n_ * 10, color = "number of Cases with SINBAD Area recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Depth_recorded__n_ * 10, color = "number of Cases with SINBAD Depth recorded")) +
+  scale_y_continuous(
+    name = "Number of SINBAD recordings") +
+  labs(x = "NDFA patients Age at assessment years", color = "Legend") +
+  theme_minimal()
+
+```
+
+
+### Plotting a line graph with 6 Y-axis relating to the individual SINBAD recordings vs the Patients duration of Diabetes
+
+The structure of this code is very similar to the code in 'individual SINBAD recordings vs the Patients age' where the difference only lies with substituting 'the Patients age' with 'Patients duration of Diabetes'. The reason for this is to determine if the duration of Diabetes produces any percievable patterns of SINBAD which could be utilised to make assumptions with the available data.
+
+```{r}
+ggplot(filtered_Diabetes_foot_2014_to_2018, aes(NDFA_patients_linked_to_NDA__Duration_of_diabetes__years_)) +
+  geom_line(aes(y = Cases_with_SINBAD_Site_recorded__n_, color = "number of Cases with SINBAD Site_recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Ischaemia_recorded__n_ * 10, color = "number of Cases with SINBAD Ischaemia recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Neuropathy_recorded__n_ * 10, color = "number of Cases with SINBAD Neuropathy recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Bacterial_Infection_recorded__n_ * 10, color = "number of Cases with SINBAD Bacterial Infection recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Area_recorded__n_ * 10, color = "number of Cases with SINBAD Area recorded")) +
+  geom_line(aes(y = Cases_with_SINBAD_Depth_recorded__n_ * 10, color = "number of Cases with SINBAD Depth recorded")) +
+  scale_y_continuous(
+    name = "Number of SINBAD recordings") +
+  labs(x = "NDFA patients linked to NDA duration of diabetes years", color = "Legend") +
+  theme_minimal()
+```
+
+### Plotting a line graph on the Sum of Case ascertainment 2016-18 vs Duration of Diabetes for NFDA patient
+
+
+For this line graph, there will be 3x Y-axis which correspond to the yearly 'Case ascertainment' from 2015-2018. This data display's when the cases was classified as NFDA. The graph will showcase the progression of the rate of case ascertainment over the 3 year period and compare these results against the Duration of Diabetes for NFDA patient. These data will then aid in determing which point of diabetes duration is where the patients are mostly diagnosed with NFDA.
+
+
+```{r}
+ggplot(filtered_Diabetes_foot_2014_to_2018, aes(NDFA_patients_linked_to_NDA__Duration_of_diabetes__years_)) +
+  geom_line(aes(y = Case_ascertainment__2015_16_____ /20, color = "Case scertainment 2015-16")) +
+  geom_line(aes(y = Case_ascertainment__2016_17_____ /20, color = "Case ascertainment 2016-17")) +
+  geom_line(aes(y = Case_ascertainment__2017_18_____ /20, color = "Case ascertainment 2017-18")) +
+  scale_y_continuous(
+    name = "Number of Case ascertainment from 2016-2018") +
+  labs(x = "NDFA patients linked to NDA Duration of diabetes years", color = "Legend") +
+  theme_minimal()
+```
+
+
+## Tableau visualisations
+
+Along with tghis project are Tableau visualisations that was personally created to supoport the analysis of this project. The link to access the Tableau visualisations are listed here: https://public.tableau.com/views/FinalNFDAprojectportfolio/NFDAvsAgeatAssessmentwithintheNHS?:language=en-GB&:display_count=n&:origin=viz_share_link
+
+## Assumptions and Limitations
+
+Utilising the graphs from tableau for analysis due to the potent visualisations that are interactive and allow for simple analysis, we can assume that there is a peak Age of 72 for patients assessed with NDFA within th NHS. but the most clustered, high volume of age range is between 66-70. These age ranges indicate that the patient with Diabetes will develop NFDA. This visualisation answers a part of one of the objectives in isolating a small age group which is most susceptible to developing NDFA.
+
+To determine the graph 'Duration of Diabetes for NFDA patients vs Cases seen within 14 days to 2 months and greater than 2 months' showcased that the cases seen greater than 2 months were extremely low compared to cases seen from 14 days to 2 months. An observation from the graph depicts that casses seen at the hospital starts to rapidly increase at estimated 12 years diabetic duration with a peak at 15 years and a steep decline after.  These results suggest that there are signs of NFDA developing at 12 years diabetic duration for patients needing to be seen at a rapid rate.
+
+
+For the next graph of 'The individual SINBAD recordings vs the Patients age', the ischemia axis contains the most prominent rise above the other SINBAD variables. The initial and highest peak of Ishemia follows at an estimate at 67 years of age. As this is a dramatic peak, it can be assumed that the pattern follows for a wide range of patients with an average of over 8200 cases. To further investigate the reason on the of peak at age 65, the data plotted on the next graph 'Sum of Case ascertainment 2016-18 vs Duration of Diabetes for NFDA patient' aids in indicating that similar to previous demonstrations on a peak at 15 year duration of Diabetes. 
+
+With all these data present, the final graph was constructed to identify the ages at which Case ascertainment peaks, determined at after 15 years of age (inital peak at around 16 years and second peak at 17 years). From her we can make assumptions that the patients wt age 65 with 15 years of diabetes are at high risk of developing Ischemia. 
+
+The issue now begins that the patients are getting seen mostly at 15 years of diabetes and not peaking before 15 diabetes duration years. If the system can be reformatted with resources shifted towards mandatory appointments at 13 diabetic years and an age bracket of 62-64 then systematic testing can begin on a bi-monthly basis (designed to save costs and provide increased appointment windows when compared to 14 days to 2 months basis).
+
+The limitations does present itself in this analysi in that the data was not complete and required a large amount of rows to be removed due to cleaning variables of '*'. The Case ascertainment column had a large amount of data missing which will impact the analysis of this data. Mandatory reporting and updating patient records for case ascertainment will aid in furture analysis of treatment patterns relating to NDFA patients.
+
+
+## Note on Reproducibility
+
+All code can be Re-run in both Big-query for SQL code listed at the beginning of this code as well as the code written in R. The R version used is 4.3.1 (2023-06-16). All the packages installed is listed at the beggining of the code. I encourage the enthusiast and non enthusiast out there to run this code and have a look at this data that has been provided to us by the UK government with the website listed here https://www.data.gov.uk/dataset/970ebe30-cb7b-4205-9149-f99f0400a881/national-diabetes-foot-care-audit-2014-2018 .
